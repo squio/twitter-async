@@ -71,6 +71,8 @@ class EpiOAuth
     if(empty($method) || empty($url))
       return false;
 
+	$this->useSSL(0 === strpos($url, 'https:'));
+
     if(empty($params['oauth_signature']))
       $params = $this->prepareParameters($method, $url, $params);
 
@@ -143,7 +145,11 @@ class EpiOAuth
     curl_setopt($ch, CURLOPT_HTTPHEADER, $this->headers); 
     curl_setopt($ch, CURLOPT_TIMEOUT, $this->requestTimeout);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->connectionTimeout);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+	// see http://github.com/jmathai/twitter-async/issues#issue/30
+	if (ini_get('open_basedir') == '' && ini_get('safe_mode' == 'Off')) 
+	{
+    	curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+	}
     if($this->useSSL === true)
     {
       curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -260,7 +266,8 @@ class EpiOAuth
       return false;
 
     $oauth['oauth_consumer_key'] = $this->consumerKey;
-    $oauth['oauth_token'] = $this->token;
+	if ($this->token)
+	    $oauth['oauth_token'] = $this->token;
     $oauth['oauth_nonce'] = $this->generateNonce();
     $oauth['oauth_timestamp'] = !isset($this->timestamp) ? time() : $this->timestamp; // for unit test
     $oauth['oauth_signature_method'] = $this->signatureMethod;
@@ -330,6 +337,7 @@ class EpiOAuth
 class EpiOAuthResponse
 {
   private $__resp;
+  private $debug = false;
 
   public function __construct($resp)
   {
@@ -360,9 +368,10 @@ class EpiOAuthException extends Exception
 {
   public static function raise($response, $debug)
   {
-    $message = $response->responseText;
-
-    switch($response->code)
+    $message = $response->data;
+	$code = $response->code;
+	
+    switch($code)
     {
       case 400:
         throw new EpiOAuthBadRequestException($message, $code);
